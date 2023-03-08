@@ -12,7 +12,7 @@ function onOpen() {
     .addItem("Set/view global seed", "setGlobalSeed")
     .addItem("Show sidebar", "showSidebar")
     .addItem("Download image", "downloadImageFromURL")
-    .addItem("Rerun selected cell(s)", "rerunFunction")
+    .addItem("Rerun selected cell(s)", "rerun")
     .addToUi();
 }
 
@@ -25,7 +25,7 @@ function setGlobalSeed() {
   );
   const result = ui.prompt(
     "Current global seed is: " + globalSeed,
-    "Set a global seed:",
+    "Set a global seed:\n(Changing the global seed will rerun all TTI functions)",
     ui.ButtonSet.OK_CANCEL
   );
 
@@ -37,11 +37,14 @@ function setGlobalSeed() {
     const seedNum = parseInt(seed);
     if (!seedNum) {
       ui.alert("Seed must be an integer");
+    } else if (seedNum === globalSeed) {
+      ui.alert("Given seed is the same as current global seed");
     } else {
       PropertiesService.getDocumentProperties().setProperty(
         "seed",
         seedNum.toString()
       );
+      rerunAllTTI();
     }
   }
 }
@@ -54,7 +57,26 @@ function showSidebar() {
     .showSidebar(html);
 }
 
-function rerunFunction() {
+function rerunAllTTI() {
+  const sheet = SpreadsheetApp.getActiveSheet();
+  const range = sheet.getDataRange();
+  const formulas = range?.getFormulas();
+  Logger.log(formulas);
+
+  for (let r = 0; r < formulas.length; r++) {
+    for (let c = 0; c < formulas[r].length; c++) {
+      const formula = formulas[r][c];
+      if (formula && /TTI\(/.test(formula)) {
+        const curr = sheet.getRange(r + 1, c + 1);
+        curr.clear();
+        SpreadsheetApp.flush();
+        curr.setFormula(formula);
+      }
+    }
+  }
+}
+
+function rerun() {
   const range = SpreadsheetApp.getActiveRange();
   const formulas = range?.getFormulas();
   const values = range?.getValues();
