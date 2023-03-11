@@ -1,12 +1,15 @@
 const API_SERVER_URL = "http://m1.zamfi.net:8080/";
+const IMAGE_NOT_FOUND = `${API_SERVER_URL}ftp/image-not-found.png`;
 const DEFAULT_SEED = "1234";
+const ERRORS = ["#REF!", "#ERROR!", "#NAME?"];
 
-function onInstall() {
+function onInstall(e: GoogleAppsScript.Events.AddonOnInstall) {
   PropertiesService.getDocumentProperties().setProperty("seed", DEFAULT_SEED);
-  onOpen();
+  // @ts-ignore
+  onOpen(e);
 }
 
-function onOpen() {
+function onOpen(e: GoogleAppsScript.Events.SheetsOnOpen) {
   SpreadsheetApp.getUi() // Or DocumentApp or SlidesApp or FormApp.
     .createMenu("Spreadsheet Diffusion")
     .addItem("Set/view global seed", "setGlobalSeed")
@@ -66,7 +69,7 @@ function rerunAllTTI() {
   for (let r = 0; r < formulas.length; r++) {
     for (let c = 0; c < formulas[r].length; c++) {
       const formula = formulas[r][c];
-      if (formula && /TTI\(/.test(formula)) {
+      if (formula && /TTI\(/i.test(formula)) {
         const curr = sheet.getRange(r + 1, c + 1);
         curr.clear();
         SpreadsheetApp.flush();
@@ -125,7 +128,19 @@ function FETCH_IMAGE(ready) {
   }
 }
 
+function test() {
+  console.log(
+    Object.entries(PropertiesService.getDocumentProperties().getProperties())
+  );
+}
+
 function TTI(prompt, seed = null) {
+  // check if the prompt is a Google Sheets error message
+  if (ERRORS.includes(prompt)) {
+    return IMAGE_NOT_FOUND;
+  }
+
+  // if no seed arg, use global seed
   let reqSeed = parseInt(
     PropertiesService.getDocumentProperties().getProperty("seed") ||
       DEFAULT_SEED
@@ -134,16 +149,19 @@ function TTI(prompt, seed = null) {
     reqSeed = seed;
   }
 
-  Logger.log("prompt: %s", prompt);
   const encodedPrompt = encodeURIComponent(prompt);
+  // const seedAndPrompt = `seed=${reqSeed}&${encodedPrompt}`;
+
   const response = UrlFetchApp.fetch(
     `${API_SERVER_URL}?prompt=${encodedPrompt}&seed=${reqSeed}`
   );
   Logger.log("first cut: %s", response.getResponseCode());
   if (response.getResponseCode() !== 200) {
-    return "null-image";
+    return IMAGE_NOT_FOUND;
   } else {
-    return response.getContentText();
+    const url = response.getContentText();
+    Logger.log("url: %s", url);
+    return url;
   }
 }
 
@@ -224,4 +242,13 @@ function ALTERNATIVE(prompt, length = 5, transpose = false) {
     return [list];
   }
   return list;
+}
+
+function EMBELLISH(prompt, tranpose = false) {
+  prompt = `Embellish this sentence: ${prompt}`;
+  const res = GPT(prompt);
+  if (tranpose) {
+    return [res];
+  }
+  return res;
 }
