@@ -1,7 +1,37 @@
 const API_SERVER_URL = "http://m1.zamfi.net:8080/";
 const IMAGE_NOT_FOUND = `${API_SERVER_URL}ftp/image-not-found.png`;
 const DEFAULT_SEED = "1234";
-const ERRORS = ["#REF!", "#ERROR!", "#NAME?"];
+const ERRORS = [
+  "#REF!",
+  "#ERROR!",
+  "#NAME?",
+  "#DIV/0",
+  "#VALUE!",
+  "#NUM!",
+  "#NULL!",
+  "#N/A",
+];
+type SPREADSHEET_INPUT = string | number | boolean | Date;
+
+function validatePrompt(prompt) {
+  if (ERRORS.includes(prompt)) {
+    throw `Invalid input: ${prompt} error was passed as prompt`;
+  }
+  if (typeof prompt !== "string") {
+    console.log(typeof prompt);
+    throw `Invalid input: prompt is not a string`;
+  }
+  if (prompt === "") {
+    throw `Invalid input: prompt is empty`;
+  }
+}
+
+function validateLengthAndTranspose(length, transpose) {
+  if (length && typeof length !== "number")
+    throw `Invalid input: length=${length} is not a number`;
+  if (transpose && typeof transpose !== "boolean")
+    throw `Invalid input: tranpose=${transpose} is not a boolean`;
+}
 
 function onInstall(e: GoogleAppsScript.Events.AddonOnInstall) {
   PropertiesService.getDocumentProperties().setProperty("seed", DEFAULT_SEED);
@@ -16,6 +46,7 @@ function onOpen(e: GoogleAppsScript.Events.SheetsOnOpen) {
     .addItem("Show sidebar", "showSidebar")
     .addItem("Download image", "downloadImageFromURL")
     .addItem("Rerun selected cell(s)", "rerun")
+    .addItem("Rerun all TTI", "rerunAllTTIConfirm")
     .addToUi();
 }
 
@@ -79,6 +110,18 @@ function rerunAllTTI() {
   }
 }
 
+function rerunAllTTIConfirm() {
+  const ui = SpreadsheetApp.getUi();
+  const result = ui.alert(
+    "Are you sure you want to rerun all TTI functions?",
+    ui.ButtonSet.YES_NO
+  );
+
+  if (result == ui.Button.YES) {
+    rerunAllTTI();
+  }
+}
+
 function rerun() {
   const range = SpreadsheetApp.getActiveRange();
   const formulas = range?.getFormulas();
@@ -108,7 +151,7 @@ function rerun() {
 function downloadImageFromURL() {
   const sheet = SpreadsheetApp.getActiveSheet();
   const range = sheet.getActiveRange();
-  const value = range.getValue();
+  const value = range?.getValue();
   console.log(value, value.getUrl());
   return value;
 }
@@ -128,17 +171,17 @@ function FETCH_IMAGE(ready) {
   }
 }
 
-function test() {
-  console.log(
-    Object.entries(PropertiesService.getDocumentProperties().getProperties())
-  );
+function test(input) {
+  console.log(input, typeof input);
+  // const range = SpreadsheetApp.getActiveRange();
+  // const note = range.getNote();
+  // const location = range.getA1Notation();
+  // console.log(location, note);
 }
 
-function TTI(prompt, seed = null) {
-  // check if the prompt is a Google Sheets error message
-  if (ERRORS.includes(prompt)) {
-    return IMAGE_NOT_FOUND;
-  }
+function TTI(prompt, seed: number | string = "", cfg: number | string = "") {
+  Logger.log(`input) seed: ${seed}; cfg: ${cfg}; prompt: ${prompt}`);
+  validatePrompt(prompt);
 
   // if no seed arg, use global seed
   let reqSeed = parseInt(
@@ -146,7 +189,11 @@ function TTI(prompt, seed = null) {
       DEFAULT_SEED
   );
   if (seed) {
-    reqSeed = seed;
+    if (typeof seed === "number") reqSeed = seed;
+    else throw `Invalid input: seed=${seed} is not a number`;
+  }
+  if (cfg && typeof cfg !== "number") {
+    throw `Invalid input: cfg=${cfg} is not a number`;
   }
 
   const encodedPrompt = encodeURIComponent(prompt);
@@ -155,8 +202,8 @@ function TTI(prompt, seed = null) {
   const response = UrlFetchApp.fetch(
     `${API_SERVER_URL}?prompt=${encodedPrompt}&seed=${reqSeed}`
   );
-  Logger.log("first cut: %s", response.getResponseCode());
   if (response.getResponseCode() !== 200) {
+    Logger.log("server fail (%s)", response.getResponseCode());
     return IMAGE_NOT_FOUND;
   } else {
     const url = response.getContentText();
@@ -168,6 +215,8 @@ function TTI(prompt, seed = null) {
 // GPT FORMULAS =============================================
 function GPT(prompt, stop = "") {
   Logger.log("prompt: %s", prompt);
+  validatePrompt(prompt);
+
   const encodedPrompt = encodeURIComponent(prompt);
   let params = `prompt=${encodedPrompt}`;
   if (stop) {
@@ -203,6 +252,7 @@ function GPT_LIST_T(prompt, length = 5) {
 }
 
 function LIST_COMPLETION(prompt, length = 5, transpose = false) {
+  validatePrompt(prompt);
   prompt = `Extend the Javascript array literal with ${
     length + prompt.length
   } similar items [${prompt}, "`;
@@ -214,7 +264,12 @@ function LIST_COMPLETION(prompt, length = 5, transpose = false) {
   return list;
 }
 
+function LIST_COMPLETION_T(prompt, length = 5) {
+  return LIST_COMPLETION(prompt, length, true);
+}
+
 function SYNONYM(prompt, length = 5, transpose = false) {
+  validatePrompt(prompt);
   prompt = `Javascript array literal length ${length} with synonyms of ${prompt} ["`;
   const res = GPT(prompt, "%5D");
   const list = JSON.parse(`["${res}]`);
@@ -224,7 +279,12 @@ function SYNONYM(prompt, length = 5, transpose = false) {
   return list;
 }
 
+function SYNONYM_T(prompt, length = 5) {
+  return SYNONYM(prompt, length, true);
+}
+
 function ANTONYM(prompt, length = 5, transpose = false) {
+  validatePrompt(prompt);
   prompt = `Javascript array literal length ${length} with antonyms of ${prompt} ["`;
   const res = GPT(prompt, "%5D");
   const list = JSON.parse(`["${res}]`);
@@ -234,7 +294,12 @@ function ANTONYM(prompt, length = 5, transpose = false) {
   return list;
 }
 
+function ANTONYM_T(prompt, length = 5) {
+  return ANTONYM(prompt, length, true);
+}
+
 function ALTERNATIVE(prompt, length = 5, transpose = false) {
+  validatePrompt(prompt);
   prompt = `Javascript array literal length ${length} of alternative ways to say "${prompt}" ["`;
   const res = GPT(prompt, "%5D");
   const list = JSON.parse(`["${res}]`);
@@ -244,11 +309,13 @@ function ALTERNATIVE(prompt, length = 5, transpose = false) {
   return list;
 }
 
-function EMBELLISH(prompt, tranpose = false) {
+function ALTERNATIVE_T(prompt, length) {
+  return ALTERNATIVE(prompt, length, true);
+}
+
+function EMBELLISH(prompt) {
+  validatePrompt(prompt);
   prompt = `Embellish this sentence: ${prompt}`;
   const res = GPT(prompt);
-  if (tranpose) {
-    return [res];
-  }
   return res;
 }
