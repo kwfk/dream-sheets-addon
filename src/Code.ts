@@ -33,6 +33,22 @@ function validateLengthAndTranspose(length, transpose) {
     throw `Invalid input: tranpose=${transpose} is not a boolean`;
 }
 
+function parseList(arr, length, transpose) {
+  try {
+    let list = JSON.parse(arr);
+    if (list.length > length) {
+      list = list.slice(0, length);
+    }
+
+    if (transpose) {
+      return [list];
+    }
+    return list;
+  } catch (err) {
+    throw `GPT failed to generate a proper list, try another response: ${arr}`;
+  }
+}
+
 function onInstall(e: GoogleAppsScript.Events.AddonOnInstall) {
   PropertiesService.getDocumentProperties().setProperty("seed", DEFAULT_SEED);
   // @ts-ignore
@@ -179,7 +195,12 @@ function test(input) {
   // console.log(location, note);
 }
 
-function TTI(prompt, seed: number | string = "", cfg: number | string = "") {
+function TTI(
+  prompt,
+  seed: number | string = "",
+  guidance: number | string = ""
+) {
+  const cfg = guidance;
   Logger.log(`input) seed: ${seed}; cfg: ${cfg}; prompt: ${prompt}`);
   validatePrompt(prompt);
 
@@ -192,19 +213,28 @@ function TTI(prompt, seed: number | string = "", cfg: number | string = "") {
     if (typeof seed === "number") reqSeed = seed;
     else throw `Invalid input: seed=${seed} is not a number`;
   }
-  if (cfg && typeof cfg !== "number") {
-    throw `Invalid input: cfg=${cfg} is not a number`;
+  if (cfg) {
+    if (typeof cfg !== "number") {
+      throw `Invalid input: guidance=${cfg} is not a number`;
+    } else if (cfg < 0 && cfg > 35) {
+      throw `Invalid input: guidance=${cfg} must be between 0 and 35`;
+    }
   }
 
   const encodedPrompt = encodeURIComponent(prompt);
   // const seedAndPrompt = `seed=${reqSeed}&${encodedPrompt}`;
 
   const response = UrlFetchApp.fetch(
-    `${API_SERVER_URL}?prompt=${encodedPrompt}&seed=${reqSeed}`
+    `${API_SERVER_URL}?prompt=${encodedPrompt}&seed=${reqSeed}&cfg=${cfg}`,
+    {
+      muteHttpExceptions: true,
+    }
   );
   if (response.getResponseCode() !== 200) {
-    Logger.log("server fail (%s)", response.getResponseCode());
-    return IMAGE_NOT_FOUND;
+    const errorMsg = response.getContentText();
+    const errorCode = response.getResponseCode();
+    Logger.log("server fail (%s)", errorCode);
+    throw `(${errorCode}) ${errorMsg}`;
   } else {
     const url = response.getContentText();
     Logger.log("url: %s", url);
@@ -222,29 +252,29 @@ function GPT(prompt, stop = "") {
   if (stop) {
     params += `&stop=${stop}`;
   }
-  const response = UrlFetchApp.fetch(`${API_SERVER_URL}gpt?${params}`);
+  const response = UrlFetchApp.fetch(`${API_SERVER_URL}gpt?${params}`, {
+    muteHttpExceptions: true,
+  });
   Logger.log(
     "gpt res: %s",
     response.getContentText(),
     response.getResponseCode()
   );
   if (response.getResponseCode() !== 200) {
-    return "null-completion";
+    const errorMsg = response.getContentText();
+    const errorCode = response.getResponseCode();
+    Logger.log("server fail (%s)", errorCode);
+    throw `(${errorCode}) ${errorMsg}`;
   } else {
     return response.getContentText();
   }
 }
 
 function GPT_LIST(prompt, length = 5, transpose = false) {
-  prompt = `Javascript array literal length ${length} with ${prompt} ["`;
+  prompt = `Javascript array literal length ${length} with "${prompt}" ["`;
 
   const res = GPT(prompt, "%5D");
-  const list = JSON.parse(`["${res}]`);
-
-  if (transpose) {
-    return [list];
-  }
-  return list;
+  return parseList(`["${res}]`, length, transpose);
 }
 
 function GPT_LIST_T(prompt, length = 5) {
@@ -252,65 +282,48 @@ function GPT_LIST_T(prompt, length = 5) {
 }
 
 function LIST_COMPLETION(prompt, length = 5, transpose = false) {
-  validatePrompt(prompt);
   prompt = `Extend the Javascript array literal with ${
     length + prompt.length
   } similar items [${prompt}, "`;
   const res = GPT(prompt, "%5D");
-  const list = JSON.parse(`["${res}]`);
-  if (transpose) {
-    return [list];
-  }
-  return list;
+  return parseList(`["${res}]`, length, transpose);
 }
 
 function LIST_COMPLETION_T(prompt, length = 5) {
   return LIST_COMPLETION(prompt, length, true);
 }
 
-function SYNONYM(prompt, length = 5, transpose = false) {
+function SYNONYMS(prompt, length = 5, transpose = false) {
   validatePrompt(prompt);
-  prompt = `Javascript array literal length ${length} with synonyms of ${prompt} ["`;
+  prompt = `Javascript array literal length ${length} with synonyms of "${prompt}" ["`;
   const res = GPT(prompt, "%5D");
-  const list = JSON.parse(`["${res}]`);
-  if (transpose) {
-    return [list];
-  }
-  return list;
+  return parseList(`["${res}]`, length, transpose);
 }
 
-function SYNONYM_T(prompt, length = 5) {
-  return SYNONYM(prompt, length, true);
+function SYNONYMS_T(prompt, length = 5) {
+  return SYNONYMS(prompt, length, true);
 }
 
-function ANTONYM(prompt, length = 5, transpose = false) {
+function ANTONYMS(prompt, length = 5, transpose = false) {
   validatePrompt(prompt);
-  prompt = `Javascript array literal length ${length} with antonyms of ${prompt} ["`;
+  prompt = `Javascript array literal length ${length} with antonyms of "${prompt}" ["`;
   const res = GPT(prompt, "%5D");
-  const list = JSON.parse(`["${res}]`);
-  if (transpose) {
-    return [list];
-  }
-  return list;
+  return parseList(`["${res}]`, length, transpose);
 }
 
-function ANTONYM_T(prompt, length = 5) {
-  return ANTONYM(prompt, length, true);
+function ANTONYMS_T(prompt, length = 5) {
+  return ANTONYMS(prompt, length, true);
 }
 
-function ALTERNATIVE(prompt, length = 5, transpose = false) {
+function ALTERNATIVES(prompt, length = 5, transpose = false) {
   validatePrompt(prompt);
   prompt = `Javascript array literal length ${length} of alternative ways to say "${prompt}" ["`;
   const res = GPT(prompt, "%5D");
-  const list = JSON.parse(`["${res}]`);
-  if (transpose) {
-    return [list];
-  }
-  return list;
+  return parseList(`["${res}]`, length, transpose);
 }
 
-function ALTERNATIVE_T(prompt, length) {
-  return ALTERNATIVE(prompt, length, true);
+function ALTERNATIVES_T(prompt, length) {
+  return ALTERNATIVES(prompt, length, true);
 }
 
 function EMBELLISH(prompt) {
