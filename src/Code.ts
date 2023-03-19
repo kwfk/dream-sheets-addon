@@ -13,7 +13,7 @@ const ERRORS = [
 ];
 type SPREADSHEET_INPUT = string | number | boolean | Date;
 
-function validatePrompt(prompt) {
+function _validatePrompt(prompt) {
   if (ERRORS.includes(prompt)) {
     throw `Invalid input: ${prompt} error was passed as prompt`;
   }
@@ -26,7 +26,7 @@ function validatePrompt(prompt) {
   }
 }
 
-function validateLengthAndTranspose(length, transpose) {
+function _validateLengthAndTranspose(length, transpose) {
   if (length && typeof length !== "number")
     throw `Invalid input: length=${length} is not a number`;
   if (transpose && typeof transpose !== "boolean")
@@ -42,15 +42,15 @@ function onInstall(e: GoogleAppsScript.Events.AddonOnInstall) {
 function onOpen(e: GoogleAppsScript.Events.SheetsOnOpen) {
   SpreadsheetApp.getUi() // Or DocumentApp or SlidesApp or FormApp.
     .createMenu("Dream Sheets")
-    .addItem("Set/view global seed", "setGlobalSeed")
-    .addItem("Show sidebar", "showSidebar")
+    .addItem("Set/view global seed", "_setGlobalSeed")
+    .addItem("Show sidebar", "_showSidebar")
     .addItem("Download image", "downloadImageFromURL")
-    .addItem("Rerun selected cell(s)", "rerun")
-    .addItem("Rerun all TTI", "rerunAllTTIConfirm")
+    .addItem("Rerun selected cell(s)", "_rerun")
+    .addItem("Rerun all TTI", "_rerunAllTTIConfirm")
     .addToUi();
 }
 
-function setGlobalSeed() {
+function _setGlobalSeed() {
   var ui = SpreadsheetApp.getUi(); // Same variations.
 
   const globalSeed = parseInt(
@@ -78,12 +78,12 @@ function setGlobalSeed() {
         "seed",
         seedNum.toString()
       );
-      rerunAllTTI();
+      _rerunAllTTI();
     }
   }
 }
 
-function showSidebar() {
+function _showSidebar() {
   const html = HtmlService.createHtmlOutputFromFile("Page").setTitle(
     "Spreadsheet Diffusion"
   );
@@ -91,7 +91,7 @@ function showSidebar() {
     .showSidebar(html);
 }
 
-function rerunAllTTI() {
+function _rerunAllTTI() {
   const sheet = SpreadsheetApp.getActiveSheet();
   const range = sheet.getDataRange();
   const formulas = range?.getFormulas();
@@ -110,7 +110,7 @@ function rerunAllTTI() {
   }
 }
 
-function rerunAllTTIConfirm() {
+function _rerunAllTTIConfirm() {
   const ui = SpreadsheetApp.getUi();
   const result = ui.alert(
     "Are you sure you want to rerun all TTI functions?",
@@ -118,11 +118,11 @@ function rerunAllTTIConfirm() {
   );
 
   if (result == ui.Button.YES) {
-    rerunAllTTI();
+    _rerunAllTTI();
   }
 }
 
-function rerun() {
+function _rerun() {
   const range = SpreadsheetApp.getActiveRange();
   const formulas = range?.getFormulas();
   const values = range?.getValues();
@@ -186,7 +186,7 @@ function TTI(
 ) {
   const cfg = guidance;
   Logger.log(`input) seed: ${seed}; cfg: ${cfg}; prompt: ${prompt}`);
-  validatePrompt(prompt);
+  _validatePrompt(prompt);
 
   // if no seed arg, use global seed
   let reqSeed = parseInt(
@@ -229,7 +229,7 @@ function TTI(
 // GPT FORMULAS =============================================
 function GPT(prompt, stop = "") {
   Logger.log("prompt: %s", prompt);
-  validatePrompt(prompt);
+  _validatePrompt(prompt);
 
   const encodedPrompt = encodeURIComponent(prompt);
   let params = `prompt=${encodedPrompt}`;
@@ -256,8 +256,8 @@ function GPT(prompt, stop = "") {
 
 function GPT_LIST(prompt, length = 5, transpose = false) {
   Logger.log("prompt: %s", prompt);
-  validatePrompt(prompt);
-  validateLengthAndTranspose(length, transpose);
+  _validatePrompt(prompt);
+  _validateLengthAndTranspose(length, transpose);
 
   const encodedPrompt = encodeURIComponent(prompt);
   let params = `prompt=${encodedPrompt}&length=${length}`;
@@ -313,6 +313,13 @@ function ANTONYMS_T(prompt, length = 5) {
   return ANTONYMS(prompt, length, true);
 }
 
+function DIVERGENTS(prompt, length = 5, transpose = false) {
+  return GPT_LIST(`divergent words to "${prompt}"`, length, transpose);
+}
+function DIVERGENTS_T(prompt, length = 5) {
+  return DIVERGENTS(prompt, length, true);
+}
+
 function ALTERNATIVES(prompt, length = 5, transpose = false) {
   return GPT_LIST(`alternative ways to say "${prompt}"`, length, transpose);
 }
@@ -321,7 +328,7 @@ function ALTERNATIVES_T(prompt, length) {
 }
 
 function EMBELLISH(prompt) {
-  validatePrompt(prompt);
+  _validatePrompt(prompt);
   prompt = `Embellish this sentence: ${prompt}`;
   const res = GPT(prompt);
   return res;
