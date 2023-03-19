@@ -33,22 +33,6 @@ function validateLengthAndTranspose(length, transpose) {
     throw `Invalid input: tranpose=${transpose} is not a boolean`;
 }
 
-function parseList(arr, length, transpose) {
-  try {
-    let list = JSON.parse(arr);
-    if (list.length > length) {
-      list = list.slice(0, length);
-    }
-
-    if (transpose) {
-      return [list];
-    }
-    return list;
-  } catch (err) {
-    throw `GPT failed to generate a proper list, try another response: ${arr}`;
-  }
-}
-
 function onInstall(e: GoogleAppsScript.Events.AddonOnInstall) {
   PropertiesService.getDocumentProperties().setProperty("seed", DEFAULT_SEED);
   // @ts-ignore
@@ -57,7 +41,7 @@ function onInstall(e: GoogleAppsScript.Events.AddonOnInstall) {
 
 function onOpen(e: GoogleAppsScript.Events.SheetsOnOpen) {
   SpreadsheetApp.getUi() // Or DocumentApp or SlidesApp or FormApp.
-    .createMenu("Spreadsheet Diffusion")
+    .createMenu("Dream Sheets")
     .addItem("Set/view global seed", "setGlobalSeed")
     .addItem("Show sidebar", "showSidebar")
     .addItem("Download image", "downloadImageFromURL")
@@ -271,10 +255,32 @@ function GPT(prompt, stop = "") {
 }
 
 function GPT_LIST(prompt, length = 5, transpose = false) {
-  prompt = `Javascript array literal length ${length} with "${prompt}" ["`;
+  Logger.log("prompt: %s", prompt);
+  validatePrompt(prompt);
+  validateLengthAndTranspose(length, transpose);
 
-  const res = GPT(prompt, "%5D");
-  return parseList(`["${res}]`, length, transpose);
+  const encodedPrompt = encodeURIComponent(prompt);
+  let params = `prompt=${encodedPrompt}&length=${length}`;
+  const res = UrlFetchApp.fetch(`${API_SERVER_URL}listgpt?${params}`, {
+    muteHttpExceptions: true,
+  });
+  Logger.log(`list gpt (${res.getResponseCode()}): ${res.getContentText()}`);
+
+  if (res.getResponseCode() !== 200) {
+    const errMsg = res.getContentText();
+    const errCode = res.getResponseCode();
+    throw `(${errCode}) ${errMsg}`;
+  } else {
+    let list: string[];
+    try {
+      list = JSON.parse(res.getContentText());
+    } catch (err) {
+      throw `GPT failed to generate a proper list, try another response`;
+    }
+
+    if (transpose) return [list];
+    return list;
+  }
 }
 
 function GPT_LIST_T(prompt, length = 5) {
@@ -282,11 +288,11 @@ function GPT_LIST_T(prompt, length = 5) {
 }
 
 function LIST_COMPLETION(prompt, length = 5, transpose = false) {
-  prompt = `Extend the Javascript array literal with ${
-    length + prompt.length
-  } similar items [${prompt}, "`;
-  const res = GPT(prompt, "%5D");
-  return parseList(`["${res}]`, length, transpose);
+  return GPT_LIST(
+    `similar items to this list without repeating "[${prompt}]"`,
+    length,
+    transpose
+  );
 }
 
 function LIST_COMPLETION_T(prompt, length = 5) {
@@ -294,34 +300,22 @@ function LIST_COMPLETION_T(prompt, length = 5) {
 }
 
 function SYNONYMS(prompt, length = 5, transpose = false) {
-  validatePrompt(prompt);
-  prompt = `Javascript array literal length ${length} with synonyms of "${prompt}" ["`;
-  const res = GPT(prompt, "%5D");
-  return parseList(`["${res}]`, length, transpose);
+  return GPT_LIST(`synonyms of "${prompt}"`, length, transpose);
 }
-
 function SYNONYMS_T(prompt, length = 5) {
   return SYNONYMS(prompt, length, true);
 }
 
 function ANTONYMS(prompt, length = 5, transpose = false) {
-  validatePrompt(prompt);
-  prompt = `Javascript array literal length ${length} with antonyms of "${prompt}" ["`;
-  const res = GPT(prompt, "%5D");
-  return parseList(`["${res}]`, length, transpose);
+  return GPT_LIST(`antonyms of "${prompt}"`, length, transpose);
 }
-
 function ANTONYMS_T(prompt, length = 5) {
   return ANTONYMS(prompt, length, true);
 }
 
 function ALTERNATIVES(prompt, length = 5, transpose = false) {
-  validatePrompt(prompt);
-  prompt = `Javascript array literal length ${length} of alternative ways to say "${prompt}" ["`;
-  const res = GPT(prompt, "%5D");
-  return parseList(`["${res}]`, length, transpose);
+  return GPT_LIST(`alternative ways to say "${prompt}"`, length, transpose);
 }
-
 function ALTERNATIVES_T(prompt, length) {
   return ALTERNATIVES(prompt, length, true);
 }
