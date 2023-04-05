@@ -179,6 +179,14 @@ function test(input) {
   // console.log(location, note);
 }
 
+/**
+ * Generates an image using a text-to-image model
+ * @param prompt
+ * @param seed
+ * @param guidance
+ * @returns An image URL of the generated image
+ * @customfunction
+ */
 function TTI(
   prompt,
   seed: number | string = "",
@@ -227,6 +235,13 @@ function TTI(
 }
 
 // GPT FORMULAS =============================================
+/**
+ * An open-ended function to GPT-3
+ * @param prompt
+ * @param stop
+ * @returns
+ * @customfunction
+ */
 function GPT(prompt, stop = "") {
   Logger.log("prompt: %s", prompt);
   _validatePrompt(prompt);
@@ -254,6 +269,14 @@ function GPT(prompt, stop = "") {
   }
 }
 
+/**
+ * Gives list of items based on the given prompt
+ * @param prompt
+ * @param length
+ * @param transpose
+ * @returns
+ * @customfunction
+ */
 function GPT_LIST(prompt, length = 5, transpose = false) {
   Logger.log("prompt: %s", prompt);
   _validatePrompt(prompt);
@@ -282,11 +305,25 @@ function GPT_LIST(prompt, length = 5, transpose = false) {
     return list;
   }
 }
-
+/**
+ * Transposed version of GPT_LIST
+ * @param prompt
+ * @param length
+ * @returns
+ * @customfunction
+ */
 function GPT_LIST_T(prompt, length = 5) {
   return GPT_LIST(prompt, length, true);
 }
 
+/**
+ * Gives list of items with elements similar to given list
+ * @param prompt
+ * @param length
+ * @param transpose
+ * @returns
+ * @customfunction
+ */
 function LIST_COMPLETION(prompt, length = 5, transpose = false) {
   return GPT_LIST(
     `similar items to this list without repeating "[${prompt}]"`,
@@ -294,39 +331,110 @@ function LIST_COMPLETION(prompt, length = 5, transpose = false) {
     transpose
   );
 }
-
+/**
+ * Transposed version of LIST_COMPLETION
+ * @param prompt
+ * @param length
+ * @returns
+ * @customfunction
+ */
 function LIST_COMPLETION_T(prompt, length = 5) {
   return LIST_COMPLETION(prompt, length, true);
 }
 
+/**
+ * Gives list of synonyms of given word
+ * @param prompt
+ * @param length
+ * @param transpose
+ * @returns
+ * @customfunction
+ */
 function SYNONYMS(prompt, length = 5, transpose = false) {
   return GPT_LIST(`synonyms of "${prompt}"`, length, transpose);
 }
+/**
+ * Transposed version of SYNONYMS
+ * @param prompt
+ * @param length
+ * @returns
+ * @customfunction
+ */
 function SYNONYMS_T(prompt, length = 5) {
   return SYNONYMS(prompt, length, true);
 }
 
+/**
+ * Gives list of antonyms of given word
+ * @param prompt
+ * @param length
+ * @param transpose
+ * @returns
+ * @customfunction
+ */
 function ANTONYMS(prompt, length = 5, transpose = false) {
   return GPT_LIST(`antonyms of "${prompt}"`, length, transpose);
 }
+/**
+ * Transposed version of ANTONYMS
+ * @param prompt
+ * @param length
+ * @returns
+ * @customfunction
+ */
 function ANTONYMS_T(prompt, length = 5) {
   return ANTONYMS(prompt, length, true);
 }
 
+/**
+ * Gives list of different but related words to given word
+ * @param prompt
+ * @param length
+ * @param transpose
+ * @returns
+ * @customfunction
+ */
 function DIVERGENTS(prompt, length = 5, transpose = false) {
   return GPT_LIST(`divergent words to "${prompt}"`, length, transpose);
 }
+/**
+ * Transposed version of DIVERGENTS
+ * @param prompt
+ * @param length
+ * @returns
+ * @customfunction
+ */
 function DIVERGENTS_T(prompt, length = 5) {
   return DIVERGENTS(prompt, length, true);
 }
 
+/**
+ * Gives list of alternative ways to say the given word or phrase
+ * @param {string} prompt A word or phrase
+ * @param {number} length Number of alternatives
+ * @returns The alternative ways to say the word or phrase
+ * @customfunction
+ */
 function ALTERNATIVES(prompt, length = 5, transpose = false) {
   return GPT_LIST(`alternative ways to say "${prompt}"`, length, transpose);
 }
+/**
+ * Transposed version of ALTERNATIVES
+ * @param prompt
+ * @param length
+ * @returns
+ * @customfunction
+ */
 function ALTERNATIVES_T(prompt, length) {
   return ALTERNATIVES(prompt, length, true);
 }
 
+/**
+ * Embellishes a phrase
+ * @param {string} prompt A phrase to embellish
+ * @returns The embellished phrase
+ * @customfunction
+ */
 function EMBELLISH(prompt) {
   _validatePrompt(prompt);
   prompt = `Embellish this sentence: ${prompt}`;
