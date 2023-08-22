@@ -45,6 +45,7 @@ function onOpen(e: GoogleAppsScript.Events.SheetsOnOpen) {
     .addItem("Set/view global seed", "_setGlobalSeed")
     .addItem("Show sidebar", "_showSidebar")
     .addItem("Download image", "downloadImageFromURL")
+    .addItem("Get document ID", "_showDocumentId")
     .addItem("Rerun selected cell(s)", "_rerun")
     .addItem("Rerun all TTI", "_rerunAllTTIConfirm")
     .addToUi();
@@ -89,6 +90,16 @@ function _showSidebar() {
   );
   SpreadsheetApp.getUi() // Or DocumentApp or SlidesApp or FormApp.
     .showSidebar(html);
+}
+
+function _getDocumentId() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet();
+  const id = sheet.getId();
+  return id;
+}
+
+function _showDocumentId() {
+  SpreadsheetApp.getUi().alert(_getDocumentId());
 }
 
 function _rerunAllTTI() {
@@ -215,9 +226,10 @@ function TTI(
 
   const encodedPrompt = encodeURIComponent(prompt);
   // const seedAndPrompt = `seed=${reqSeed}&${encodedPrompt}`;
+  const id = _getDocumentId();
 
   const response = UrlFetchApp.fetch(
-    `${API_SERVER_URL}?prompt=${encodedPrompt}&seed=${reqSeed}&cfg=${cfg}`,
+    `${API_SERVER_URL}?prompt=${encodedPrompt}&seed=${reqSeed}&cfg=${cfg}&id=${id}`,
     {
       muteHttpExceptions: true,
     }
@@ -251,9 +263,13 @@ function GPT(prompt, stop = "") {
   if (stop) {
     params += `&stop=${stop}`;
   }
-  const response = UrlFetchApp.fetch(`${API_SERVER_URL}gpt?${params}`, {
-    muteHttpExceptions: true,
-  });
+  const id = _getDocumentId();
+  const response = UrlFetchApp.fetch(
+    `${API_SERVER_URL}gpt?${params}&id=${id}`,
+    {
+      muteHttpExceptions: true,
+    }
+  );
   Logger.log(
     "gpt res: %s",
     response.getContentText(),
@@ -284,7 +300,8 @@ function GPT_LIST(prompt, length = 5, transpose = false) {
 
   const encodedPrompt = encodeURIComponent(prompt);
   let params = `prompt=${encodedPrompt}&length=${length}`;
-  const res = UrlFetchApp.fetch(`${API_SERVER_URL}listgpt?${params}`, {
+  const id = _getDocumentId();
+  const res = UrlFetchApp.fetch(`${API_SERVER_URL}listgpt?${params}&id=${id}`, {
     muteHttpExceptions: true,
   });
   Logger.log(`list gpt (${res.getResponseCode()}): ${res.getContentText()}`);
