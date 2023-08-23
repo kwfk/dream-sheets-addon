@@ -1,6 +1,7 @@
 const API_SERVER_URL = "http://m1.zamfi.net:8080/";
 const IMAGE_NOT_FOUND = `${API_SERVER_URL}ftp/image-not-found.png`;
 const DEFAULT_SEED = "1234";
+const DEFAULT_CFG = "13";
 const ERRORS = [
   "#REF!",
   "#ERROR!",
@@ -42,10 +43,12 @@ function onInstall(e: GoogleAppsScript.Events.AddonOnInstall) {
 function onOpen(e: GoogleAppsScript.Events.SheetsOnOpen) {
   SpreadsheetApp.getUi() // Or DocumentApp or SlidesApp or FormApp.
     .createMenu("Dream Sheets")
-    .addItem("Set/view global seed", "_setGlobalSeed")
-    .addItem("Show sidebar", "_showSidebar")
-    .addItem("Download image", "downloadImageFromURL")
     .addItem("Get document ID", "_showDocumentId")
+    .addItem("Set/view global seed", "_setGlobalSeed")
+    .addSeparator()
+    .addItem("Show prompt", "_showPrompt")
+    .addItem("Download image", "_downloadImage")
+    .addSeparator()
     .addItem("Rerun selected cell(s)", "_rerun")
     .addItem("Rerun all TTI", "_rerunAllTTIConfirm")
     .addToUi();
@@ -159,12 +162,124 @@ function _rerun() {
   range.setValues(copyVals);
 }
 
-function downloadImageFromURL() {
+type TTIParams = {
+  prompt: string;
+  seed: string | number;
+  guidance: string | number;
+};
+
+function _getParams(
+  prompt: string,
+  seed: number | string = "",
+  guidance: number | string = ""
+) {
+  const params: TTIParams = {
+    prompt,
+    seed,
+    guidance,
+  };
+  return JSON.stringify(params);
+}
+
+function _getPrompt(): TTIParams {
+  // get the params for TTI, pass them into a different function, get their values
   const sheet = SpreadsheetApp.getActiveSheet();
-  const range = sheet.getActiveRange();
-  const value = range?.getValue();
-  console.log(value, value.getUrl());
-  return value;
+  const cell = sheet.getActiveCell();
+  const value = cell?.getValue().toString();
+
+  // check if value === CellImage
+  if (value !== "CellImage") {
+    throw new Error("Selected cell is not an image");
+  }
+
+  // check if formula is =IMAGE(TTI())
+  const formula = cell?.getFormula();
+  if (formula === undefined) {
+    throw new Error("Selected cell is not a formula");
+  }
+
+  const regex = /=IMAGE\(TTI\((.*?)\)\)/;
+  const matches = formula.match(regex);
+
+  if (matches && matches.length >= 2) {
+    const rawPrompt = matches[1];
+
+    const prompt: string = cell
+      .setValue("=_getParams(" + rawPrompt + ")")
+      .getValue()
+      .toString();
+    cell.setValue(formula);
+
+    return JSON.parse(prompt);
+  } else {
+    throw new Error("Selected cell must use TTI formula");
+  }
+}
+
+function _showPrompt() {
+  const loc = SpreadsheetApp.getCurrentCell().getA1Notation();
+  const prompt = _getPrompt();
+
+  let seed =
+    PropertiesService.getDocumentProperties().getProperty("seed") ||
+    DEFAULT_SEED;
+  if (prompt.seed) {
+    seed = prompt.seed.toString();
+  }
+
+  let cfg = DEFAULT_CFG;
+  if (prompt.guidance) {
+    cfg = prompt.guidance.toString();
+  }
+
+  const htmlOutput = HtmlService.createHtmlOutput(
+    `<p>Prompt: ${prompt.prompt}</p><p>Seed: ${seed}</p><p>Guidance: ${cfg}</p>`
+  )
+    .setWidth(250)
+    .setHeight(250);
+  SpreadsheetApp.getUi().showModelessDialog(htmlOutput, `Prompt at ${loc}`);
+}
+
+function _downloadImage() {
+  const sheet = SpreadsheetApp.getActiveSheet();
+  const cell = sheet.getActiveCell();
+  const value = cell?.getValue().toString();
+
+  // check if value === CellImage
+  if (value !== "CellImage") {
+    throw new Error("Selected cell is not an image");
+  }
+
+  // check if formula is =IMAGE(TTI())
+  const formula = cell?.getFormula();
+  if (formula === undefined) {
+    throw new Error("Selected cell is not a formula");
+  }
+
+  const regex = /=IMAGE\((TTI\(.*?\))\)/;
+  const matches = formula.match(regex);
+
+  if (matches && matches.length >= 2) {
+    const tti = matches[1];
+
+    const url: string = cell
+      .setValue("=" + tti)
+      .getValue()
+      .toString();
+    cell.setValue(formula);
+
+    const htmlOutput = HtmlService.createHtmlOutput(
+      `<div style="overflow-wrap: anywhere;"><a href="${url}">${url}</a></div>`
+    )
+      .setWidth(250)
+      .setHeight(150);
+    SpreadsheetApp.getUi().showModelessDialog(
+      htmlOutput,
+      `URL at ${cell.getA1Notation()}`
+    );
+  } else {
+    throw new Error("Selected cell must use TTI formula");
+  }
 }
 
 function FETCH_IMAGE(ready) {
