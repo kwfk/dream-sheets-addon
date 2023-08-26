@@ -1,4 +1,6 @@
-const API_SERVER_URL = "http://m1.zamfi.net:8080/";
+// const API_SERVER_URL = "http://m1.zamfi.net:8080/";
+const API_SERVER_URL = "http://dreamsheets.zamfi.net/";
+
 const IMAGE_NOT_FOUND = `${API_SERVER_URL}ftp/image-not-found.png`;
 const DEFAULT_SEED = "1234";
 const DEFAULT_CFG = "13";
@@ -198,7 +200,7 @@ function _getPrompt(): TTIParams {
     throw new Error("Selected cell is not a formula");
   }
 
-  const regex = /=IMAGE\(TTI\((.*?)\)\)/;
+  const regex = /=IMAGE\(TTI\((.*?)\)\)/i;
   const matches = formula.match(regex);
 
   if (matches && matches.length >= 2) {
@@ -256,7 +258,7 @@ function _downloadImage() {
     throw new Error("Selected cell is not a formula");
   }
 
-  const regex = /=IMAGE\((TTI\(.*?\))\)/;
+  const regex = /=IMAGE\((TTI\(.*?\))\)/i;
   const matches = formula.match(regex);
 
   if (matches && matches.length >= 2) {
