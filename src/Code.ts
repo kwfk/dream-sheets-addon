@@ -200,11 +200,10 @@ function _getPrompt(): TTIParams {
     throw new Error("Selected cell is not a formula");
   }
 
-  const regex = /=IMAGE\(TTI\((.*?)\)\)/i;
-  const matches = formula.match(regex);
+  const regex = /=IMAGE\(TTI\(/i;
 
-  if (matches && matches.length >= 2) {
-    const rawPrompt = matches[1];
+  if (regex.test(formula)) {
+    const rawPrompt = formula.slice(11, -2);
 
     const prompt: string = cell
       .setValue("=_getParams(" + rawPrompt + ")")
